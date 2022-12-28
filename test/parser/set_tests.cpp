@@ -72,27 +72,15 @@ BOOST_AUTO_TEST_CASE(constant_set_test)
     BOOST_TEST(kset.items[2].type == CType::CT_Const);
     BOOST_TEST(kset.items[3].type == CType::CT_Const);
     
-    std::string_view res = {
-        kset.items[0].cnst->val, 
-        kset.items[0].cnst->len 
-    };
-    BOOST_TEST(res == "x");
+    BOOST_TEST(to_sv(kset.items[0].cnst) == "x");
     BOOST_TEST(kset.items[0].cnst->owns== true);
 
     BOOST_TEST(kset.items[1].u64 == 3);
     
-    res = std::string_view {
-        kset.items[2].cnst->val, 
-        kset.items[2].cnst->len 
-    };
-    BOOST_TEST(res == "y");
+    BOOST_TEST(to_sv(kset.items[2].cnst) == "y");
     BOOST_TEST(kset.items[2].cnst->owns== true);
     
-    res = std::string_view {
-        kset.items[3].cnst->val, 
-        kset.items[3].cnst->len 
-    };
-    BOOST_TEST(res == "z");
+    BOOST_TEST(to_sv(kset.items[3].cnst) == "z");
     BOOST_TEST(kset.items[3].cnst->owns== true);
 
     free_KContext(ctx);

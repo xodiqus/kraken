@@ -16,4 +16,11 @@ inline std::string_view to_sv(KString in)
     };
 }
 
+inline std::string_view to_sv(KString* in)
+{
+    assert(in != nullptr);
+
+    return to_sv(*in);
+}
+
 #endif
