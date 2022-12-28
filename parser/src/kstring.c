@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <stdlib.h>
 
-struct KString KString_span(const char* in, size_t len)
+struct KString span_KString(const char* in, size_t len)
 {
     struct KString r; 
 
@@ -15,7 +15,7 @@ struct KString KString_span(const char* in, size_t len)
     return r;
 } 
 
-struct KString KString_copy(const char* in, size_t len)
+struct KString copy_KString(const char* in, size_t len)
 {
     struct KString r; 
 

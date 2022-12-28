@@ -1,11 +1,13 @@
-#ifndef INCLUDED_SET
-#define INCLUDED_SET
+#ifndef INCLUDED_KSET
+#define INCLUDED_KSET
 
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
 
 #include "kstring.h"
+#include "kcontext.h"
+#include "kerror.h"
 
 enum CType {
     CT_Bool  = 1 ,
@@ -25,16 +27,20 @@ struct KAny {
     };
 };
 
+struct KArg {
+    struct KString  name;
+    struct KString  type;
+};
+
 struct KSet {
+    struct KString  name;
+    struct KArg*    args;
+    size_t          args_count;
+
     struct KAny*    items;
     size_t          length;
 };
 
-struct context;
-
-struct context* create_context(const char** err); 
-void free_context(struct context*);
-
-struct KSet parse_KSet(struct context*, const char* str, const char**err);
+struct KSet parse_KSet(struct KContext*, const char* str, struct KError* err);
 
 #endif

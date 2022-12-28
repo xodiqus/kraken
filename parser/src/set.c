@@ -1,5 +1,5 @@
 
-#include "set.h"
+#include "kset.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -8,11 +8,6 @@
 #include <ctype.h>
 
 #include <kstring.h>
-
-struct context {
-    regex_t reg_correct_set;
-    regex_t reg_set_item;
-};
 
 struct KAny create_KAny(struct KString in)
 {
@@ -29,36 +24,10 @@ struct KAny create_KAny(struct KString in)
     } else {
         r.type = CT_Const;
         r.cnst = malloc(sizeof(struct KString));
-       *r.cnst = KString_copy(in.val, in.len);
+       *r.cnst = copy_KString(in.val, in.len);
     }
     
     return r;
-}
-
-struct context* create_context(const char** err)
-{
-    struct context* c = malloc(sizeof(struct context));
-
-    if (regcomp(&c->reg_correct_set, "\\s*{\\s*\\([0-9],\\)*}\\s*", 0) && err != NULL)
-    {
-        *err = "Can't initialize reg_correct_set!";
-    } 
-
-    if (regcomp(&c->reg_set_item, "[0-9]", 0) && err != NULL)
-    {
-        *err = "Can't initialize reg_set_item!";
-    }
-
-    return c;
-}
-
-void free_context(struct context* c)
-{
-    assert(c != NULL);
-
-    regfree(&c->reg_correct_set);
-
-    free(c);
 }
 
 // Example: split("12, 34 ,x, 5,", 12) -> ["12", "34", "x", "5"]
@@ -97,11 +66,13 @@ static struct KString* split_items(const char* in, size_t len, uint64_t* count)
     return r;
 }
 
-struct KSet parse_KSet(struct context* c, const char* in, const char **err)
+struct KSet parse_KSet(struct KContext* c, const char* in, struct KError *err)
 {
     assert(c != NULL);
 
     struct KSet r = { .items = NULL, .length = 0 }; 
+    if (err != NULL) *err = no_KError();
+
     // regmatch_t m;
     
     // int v = regexec(&c->reg_correct_set, str, 1, &m, 0);

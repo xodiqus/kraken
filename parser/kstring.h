@@ -12,10 +12,10 @@ struct KString
     bool      owns; 
 };
 
-struct KString KString_span(const char* in, size_t len);
+struct KString span_KString(const char* in, size_t len);
 
 // one malloc
-struct KString KString_copy(const char* in, size_t len);
+struct KString copy_KString(const char* in, size_t len);
 
 void free_KString(struct KString);
 
