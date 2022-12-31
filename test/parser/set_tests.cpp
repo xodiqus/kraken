@@ -1,18 +1,13 @@
 #include <boost/test/unit_test.hpp>
 
-#include <array> 
-#include <string>
-#include <string_view>
-
 #include "utils.hpp"
 
 extern "C" {
     #include "parser/kset.h"
     #include "parser/kcontext.h"
     #include "parser/kerror.h"
+    #include "parser/kany.h"
 }
-
-using std::operator""s;
 
 BOOST_AUTO_TEST_SUITE(set_tests)
 
@@ -46,13 +41,13 @@ BOOST_AUTO_TEST_CASE(numbers_set_test)
 
     BOOST_TEST(kset.length == 3);
 
-    BOOST_TEST(kset.items[0].type == CType::CT_U8);
-    BOOST_TEST(kset.items[1].type == CType::CT_U8);
-    BOOST_TEST(kset.items[2].type == CType::CT_U8);
+    BOOST_TEST(kset.items[0]->type == CType::CT_U8);
+    BOOST_TEST(kset.items[1]->type == CType::CT_U8);
+    BOOST_TEST(kset.items[2]->type == CType::CT_U8);
 
-    BOOST_TEST(kset.items[0].u64 == 1);
-    BOOST_TEST(kset.items[1].u64 == 9);
-    BOOST_TEST(kset.items[2].u64 == 3);
+    BOOST_TEST(kset.items[0]->as_u64 == 1);
+    BOOST_TEST(kset.items[1]->as_u64 == 9);
+    BOOST_TEST(kset.items[2]->as_u64 == 3);
 
     free_KContext(ctx);
 }
@@ -67,21 +62,21 @@ BOOST_AUTO_TEST_CASE(constant_set_test)
     BOOST_TEST(err.num == EN_OK);
     BOOST_TEST(kset.length == 4);
 
-    BOOST_TEST(kset.items[0].type == CType::CT_Const);
-    BOOST_TEST(kset.items[1].type == CType::CT_U8);
-    BOOST_TEST(kset.items[2].type == CType::CT_Const);
-    BOOST_TEST(kset.items[3].type == CType::CT_Const);
+    BOOST_TEST(kset.items[0]->type == CType::CT_Const);
+    BOOST_TEST(kset.items[1]->type == CType::CT_U8);
+    BOOST_TEST(kset.items[2]->type == CType::CT_Const);
+    BOOST_TEST(kset.items[3]->type == CType::CT_Const);
     
-    BOOST_TEST(to_sv(kset.items[0].cnst) == "x");
-    BOOST_TEST(kset.items[0].cnst->owns== true);
+    BOOST_TEST(to_sv(kset.items[0]->as_const) == "x");
+    BOOST_TEST(kset.items[0]->as_const->owns== true);
 
-    BOOST_TEST(kset.items[1].u64 == 3);
+    BOOST_TEST(kset.items[1]->as_u64 == 3);
     
-    BOOST_TEST(to_sv(kset.items[2].cnst) == "y");
-    BOOST_TEST(kset.items[2].cnst->owns== true);
+    BOOST_TEST(to_sv(kset.items[2]->as_const) == "y");
+    BOOST_TEST(kset.items[2]->as_const->owns== true);
     
-    BOOST_TEST(to_sv(kset.items[3].cnst) == "z");
-    BOOST_TEST(kset.items[3].cnst->owns== true);
+    BOOST_TEST(to_sv(kset.items[3]->as_const) == "z");
+    BOOST_TEST(kset.items[3]->as_const->owns== true);
 
     free_KContext(ctx);
 }

@@ -1,7 +1,5 @@
 #include <boost/test/unit_test.hpp>
 
-#include <array> 
-
 #include "utils.hpp"
 
 extern "C" {
@@ -9,8 +7,6 @@ extern "C" {
     #include "parser/kcontext.h"
     #include "parser/kerror.h"
 }
-
-using std::operator""s;
 
 BOOST_AUTO_TEST_SUITE(funcall_tests)
 
@@ -29,6 +25,7 @@ BOOST_AUTO_TEST_CASE(parse_test)
     BOOST_TEST(to_sv(funcall.args[0]) == "1");
     BOOST_TEST(to_sv(funcall.args[1]) == "2");
 
+    free_KFuncall(funcall);
     free_KContext(ctx);
 }
 
