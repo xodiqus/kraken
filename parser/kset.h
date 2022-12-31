@@ -14,6 +14,10 @@ enum CType {
     CT_I8        ,
     CT_U8        ,
     CT_Const     ,
+    CT_InitVar   ,
+    CT_InitCst   ,
+    CT_Return    ,
+    CT_Funcall   ,
 };
 
 struct KAny {
@@ -27,16 +31,20 @@ struct KAny {
     };
 };
 
+struct InitVar {
+    struct KString      name; 
+    struct KAny         val;
+};
+
+typedef struct InitVar InitCst;
+
+
 struct KArg {
     struct KString  name;
     struct KString  type;
 };
 
 struct KSet {
-    struct KString  name;
-    struct KArg*    args;
-    size_t          args_count;
-
     struct KAny*    items;
     size_t          length;
 };

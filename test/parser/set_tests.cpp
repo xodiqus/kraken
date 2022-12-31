@@ -41,7 +41,7 @@ BOOST_AUTO_TEST_CASE(numbers_set_test)
     auto ctx = create_KContext(&err);
     BOOST_TEST(err.num == EN_OK);
 
-    auto kset = parse_KSet(ctx, "{1,9,3,}", &err);
+    auto kset = parse_KSet(ctx, "{1,9,3}", &err);
     BOOST_TEST(err.num == EN_OK);
 
     BOOST_TEST(kset.length == 3);
@@ -63,7 +63,7 @@ BOOST_AUTO_TEST_CASE(constant_set_test)
     auto ctx = create_KContext(&err);
     BOOST_TEST(err.num == EN_OK);
 
-    auto kset = parse_KSet(ctx, "{x,3,y,z,}", &err);
+    auto kset = parse_KSet(ctx, "{x,3,y,z}", &err);
     BOOST_TEST(err.num == EN_OK);
     BOOST_TEST(kset.length == 4);
 
@@ -88,20 +88,24 @@ BOOST_AUTO_TEST_CASE(constant_set_test)
 
 BOOST_AUTO_TEST_CASE(function_set_plus_test)
 {
-    const char* func = "plus x:i8 y:i8 = { return (+) x y }";
+    // const char* func = "{ x:i8 = 2, y=3, return (+) x y }";
 
-    KError err;
-    auto ctx = create_KContext(&err);
-    BOOST_TEST(err.num == EN_OK);
+    // KError err;
+    // auto ctx = create_KContext(&err);
+    // BOOST_TEST(err.num == EN_OK);
 
-    auto kfunc = parse_KSet(ctx, func, NULL);
+    // auto kfunc = parse_KSet(ctx, func, &err);
+    // BOOST_TEST(err.num == EN_OK);
 
-    BOOST_TEST(to_sv(kfunc.name) == "plus");
-    BOOST_TEST(kfunc.args_count == 2);
-    BOOST_TEST(to_sv(kfunc.args[0].name) == "x");
-    BOOST_TEST(to_sv(kfunc.args[1].name) == "y");
+    // BOOST_TEST(kfunc.length == 3);
+    // BOOST_TEST(kfunc.items[0].type == CT_InitVar);
+    // BOOST_TEST(kfunc.items[1].type == CT_InitCst);
+    // BOOST_TEST(kfunc.items[2].type == CT_Return);
 
-    free_KContext(ctx);
+
+
+
+    // free_KContext(ctx);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
