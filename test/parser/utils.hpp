@@ -7,6 +7,8 @@ extern "C" {
 
 #include <string>
 #include <string_view>
+#include <array>
+using std::operator""sv, std::operator""s;
 
 inline std::string_view to_sv(KString in)
 {
