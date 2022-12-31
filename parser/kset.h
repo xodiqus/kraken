@@ -22,4 +22,6 @@ struct KSet parse_KSet(struct KContext*, const char* str, struct KError* err);
 
 void free_KSet(struct KSet);
 
+struct KString to_string_KSet(struct KSet);
+
 #endif

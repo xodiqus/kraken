@@ -81,6 +81,41 @@ BOOST_AUTO_TEST_CASE(constant_set_test)
     free_KContext(ctx);
 }
 
+BOOST_AUTO_TEST_CASE(named_set_test)
+{
+    KError err;
+    KContext* ctx = create_KContext(&err);
+    BOOST_TEST(err.num == EN_OK);
+
+    auto srs = "my_set = {1,2,3,4}";
+
+    auto kset = parse_KSet(ctx, srs, &err);
+
+    BOOST_TEST(to_sv(kset.name) == "my_set");
+
+    free_KContext(ctx);
+}
+
+BOOST_AUTO_TEST_CASE(set_to_string_test)
+{
+    KError err;
+    KContext* ctx = create_KContext(&err);
+    BOOST_TEST(err.num == EN_OK);
+
+    auto srs = "my_set = {1, x, 4}";
+
+    auto kset = parse_KSet(ctx, srs, &err);
+
+    KString str = to_string_KSet(kset);
+
+    BOOST_TEST(to_sv(str) == "my_set = {1, x, 4}");
+
+    BOOST_TEST(str.owns == true);
+    free_KString(str);
+
+    free_KContext(ctx);
+}
+
 BOOST_AUTO_TEST_CASE(function_set_plus_test)
 {
     // const char* func = "{ x:i8 = 2, y=3, return (+) x y }";

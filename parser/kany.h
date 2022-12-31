@@ -46,4 +46,6 @@ bool eq_KAny(struct KAny x, struct KAny y);
 
 size_t hash_KAny(struct KAny);
 
+struct KString to_string_KAny(struct KAny);
+
 #endif 

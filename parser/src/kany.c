@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "kset.h"
 
@@ -49,5 +50,29 @@ size_t hash_KAny(struct KAny in)
         case CT_Const:  return hash_KString(*in.as_const);
 
         default: assert(false && "Can't compute a hash for KAny!");
+    }
+}
+
+struct KString to_string_KAny(struct KAny in)
+{
+    switch (in.type)
+    {
+        case CT_KSet:   return to_string_KSet(*in.as_KSet);
+        case CT_Bool:   return in.as_bool ? span_KString("true", 4) : span_KString("false", 5);
+        case CT_I8:     
+        {
+            char* buf = malloc(19 * sizeof(char)); // MAX_INT has 19 characters.
+            sprintf(buf, "%ld", in.as_i64);
+            return (struct KString){ .owns = true, .len = strlen(buf), .val = buf };
+        }
+        case CT_U8:
+        {
+            char* buf = malloc(20 * sizeof(char)); // MAX_UINT has 20 characters.
+            sprintf(buf, "%lu", in.as_i64);
+            return (struct KString){ .owns = true, .len = strlen(buf), .val = buf };
+        }   
+        case CT_Const:  return span_KString(in.as_const->val, in.as_const->len);
+
+        default: assert(false && "Can't cast KAny to string!");
     }
 }

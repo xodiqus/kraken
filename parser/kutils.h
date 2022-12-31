@@ -17,7 +17,6 @@ struct KString drop_until(struct KString in, const char* what);
 struct KString rdrop_until(struct KString in, const char* what);
 
 #define NOT_FOUND ((size_t)-1)
-
 // Finds substring in the string 'in' and returns index, otherwise NOT_FOUND. 
 size_t find_sub(struct KString in, struct KString sub);
 

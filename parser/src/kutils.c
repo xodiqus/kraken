@@ -122,3 +122,4 @@ struct KString rdrop_until(struct KString in, const char* what)
         return rdrop_KRunes(in, i + 1);
     }
 }
+
