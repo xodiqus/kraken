@@ -1,9 +1,11 @@
-
 #include "kstring.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "kcontext.h"
+
 
 struct KString span_KString(const KRune* in, size_t len)
 {
@@ -113,4 +115,16 @@ struct KString trim_KString(struct KString in)
 bool empty_KString(struct KString in)
 {
     return in.len == 0; 
+}
+
+size_t hash_KString(struct KString in)
+{
+    size_t hash = 0; 
+
+    for (size_t i = 0; i < in.len; ++i)
+    {
+        hash += (i+1) * (size_t)in.val[i];
+    }
+
+    return hash % KCONTEXT_HASH_TABLE_SIZE;
 }

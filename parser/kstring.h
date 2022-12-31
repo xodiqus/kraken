@@ -33,4 +33,6 @@ struct KString trim_KString(struct KString);
 
 bool empty_KString(struct KString);
 
+size_t hash_KString(struct KString);
+
 #endif
