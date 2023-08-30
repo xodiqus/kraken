@@ -318,7 +318,7 @@ void TPStatistics_destroy(TPStatistics* s) {
 char* TPStatistics_to_string(TPStatistics const* const s) {
     if (s == NULL) {
         const char s[] = "Statistics not available "
-#if COLLECT_STATISTICS
+#if !COLLECT_STATISTICS
         "(COLLECT_STATISTICS = 0).";
 #else
         "(input argument is NULL).";
