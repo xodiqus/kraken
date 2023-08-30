@@ -17,8 +17,7 @@ void kdebug_log_(const char* file, const char* func, long long line, const char*
     char buf[256];
 
     vsprintf(buf, format, args);
-
-    fprintf(kdebug_log_stream, "[%s : %s : %lld]: %s.\n", file, func, line, buf);
-
     va_end(args);
+
+    fprintf(kdebug_log_stream, "[%s : %lld]: %s.\n", func, line, buf);
 }

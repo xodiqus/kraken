@@ -7,12 +7,12 @@ typedef struct Task {
     i32 (*f)(void*);
     void* arg;
 
-// #ifdef KRAKEN_DEBUG_MODE    
+#ifdef KRAKEN_DEBUG    
     const char* name; 
-// #endif
+#endif
 } Task;
 
-#ifdef KRAKEN_EXPLICIT_THREAD_POOL_DEFINITION
+#ifndef KRAKEN_IMPLICIT_THREAD_POOL_DEFINITION
 
 #include <threads.h>
 #include <stdatomic.h>
@@ -45,10 +45,14 @@ typedef struct ThreadPool {
 #else 
 
 struct ThreadPool;
-struct TaskQueue_Node;
 struct TaskQueue;
 
+struct ThreadPool* ThreadPool_new(size_t threads_count);
+void               ThreadPool_delete(struct ThreadPool*);
+
 #endif
+
+const char* Task_name(const char* format, ...);
 
 void        TaskQueue_init(struct TaskQueue*);
 void        TaskQueue_destroy(struct TaskQueue*);
@@ -57,7 +61,6 @@ bool        TaskQueue_is_empty(struct TaskQueue*);
 void        TaskQueue_push(struct TaskQueue*, Task);
 Task        TaskQueue_pop (struct TaskQueue*);
 
-struct ThreadPool* ThreadPool_create(size_t threads_count);
 void        ThreadPool_init(struct ThreadPool*, size_t threads_count);
 void        ThreadPool_destroy(struct ThreadPool*);
 

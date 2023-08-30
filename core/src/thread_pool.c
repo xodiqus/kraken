@@ -1,12 +1,38 @@
-#define KRAKEN_EXPLICIT_THREAD_POOL_DEFINITION
 #include "thread_pool.h"
 
 #include <stdlib.h>
 #include <assert.h>
 #include <stdio.h>
+#include <stdarg.h>
 
-void TaskQueue_init(TaskQueue* r)
-{
+#include "kdebug.h"
+
+
+const char* Task_name(const char *format, ...) {
+    assert(format != NULL);
+
+#ifdef KRAKEN_DEBUG
+
+    char* name = malloc(100);
+    assert(name != NULL);
+
+    va_list args;
+    va_start(args, format);
+
+    vsprintf(name, format, args);
+
+    va_end(args);
+
+    return name;
+
+#else
+
+    return NULL;
+
+#endif
+}
+
+void TaskQueue_init(TaskQueue *r) {
     assert(r != NULL);
 
     r->len = 0;
@@ -91,32 +117,60 @@ Task TaskQueue_pop(TaskQueue* const q) {
     return t;
 }
 
+struct ThreadPool_loop_arg {
+    ThreadPool* pool;
+    size_t      this_thrd;
+};
+
 static int ThreadPool_loop(void* in) {
-    ThreadPool* const pool = (ThreadPool*)in;
-    TaskQueue* const tasks = &(pool)->tasks;
-    
+    assert(in != NULL);
+
+    struct ThreadPool_loop_arg* arg = (struct ThreadPool_loop_arg*)in;
+
+    ThreadPool* const pool = arg->pool;
+    TaskQueue*  const tasks = &pool->tasks;
+    size_t      const this_thrd = arg->this_thrd;
+
+    free(in);
+
+    kdebug_code(
+        arg = NULL,
+        in = NULL;
+    )
+
     while (true) {
-        
-        while (TaskQueue_is_empty(tasks)) {
-            if (pool->joined) {
-                ++pool->ready_to_join;
-                printf("Thread is joined.\n");
-                goto exit;
+        mtx_lock(&pool->mtx);
+
+        check_elapsed_sec( waiting_time, 
+            while (TaskQueue_is_empty(tasks)) {
+                kdebug_log("thread %lu waits for a new task", this_thrd);
+                cnd_wait(&pool->cnd, &pool->mtx);
+
+                if (!TaskQueue_is_empty(tasks)) {
+                    break;
+                }   
+
+                if (pool->joined) {
+                    mtx_unlock(&pool->mtx);
+                    kdebug_log("thread %lu joins", this_thrd);
+                    ++pool->ready_to_join;
+                    goto exit;
+                }
             }
-            
-            printf("Thread is waiting for new tasks.\n");
-            mtx_trylock(&pool->mtx);
-            cnd_wait(&pool->cnd, &pool->mtx);
-        }
+        )
 
         Task t = TaskQueue_pop(tasks);
+        
         mtx_unlock(&pool->mtx);
-
         --pool->free_threads_count;
 
-        printf("Task [%s, %ld] is processing.\n", t.name, (size_t)t.arg);
-        t.f(t.arg);
-        printf("Task [%s, %ld] is processed.\n", t.name, (size_t)t.arg);
+        kdebug_log("thread %lu starts [%s] (wait: %.2llf ms)", this_thrd, t.name, waiting_time*1000);
+        check_elapsed_sec(work_time, t.f(t.arg));
+        kdebug_log("thread %lu finishes [%s] (%.2llf sec)", this_thrd, t.name, work_time);
+
+        kdebug_code(
+            free((char*)t.name);
+        )
 
         ++pool->free_threads_count;
     }
@@ -124,11 +178,17 @@ static int ThreadPool_loop(void* in) {
     exit:
 }
 
-ThreadPool *ThreadPool_create(size_t threads_count)
+ThreadPool *ThreadPool_new(size_t threads_count)
 {
     ThreadPool* r = malloc(sizeof(ThreadPool));
     ThreadPool_init(r, threads_count);
     return r;
+}
+
+void ThreadPool_delete(ThreadPool *p)
+{
+    ThreadPool_destroy(p);
+    free(p);
 }
 
 void ThreadPool_init(ThreadPool *p, size_t threads_count)
@@ -146,15 +206,26 @@ void ThreadPool_init(ThreadPool *p, size_t threads_count)
 
     p->free_threads_count = threads_count;
 
-    for (size_t i = 0; i < threads_count; ++i) {
-        thrd_create(&p->threads[i], &ThreadPool_loop, p);
-    }
+    check_elapsed_sec( all_thread_creation_time, 
+        for (size_t i = 0; i < threads_count; ++i) {
+            kdebug_log("create thread %lu", i);
+
+            struct ThreadPool_loop_arg* arg = malloc(sizeof (struct ThreadPool_loop_arg));
+            assert(arg != NULL);
+            arg->pool = p; 
+            arg->this_thrd = i;
+
+            thrd_create(&p->threads[i], &ThreadPool_loop, arg);
+        }
+    )
+
+    kdebug_log("All threads created (%.3llf ms)", all_thread_creation_time * 1000);
 }
 
 void ThreadPool_destroy(ThreadPool* const p) {
     assert(p != NULL);
 
-    printf("Destroying ThreadPool. Remained tasks: %ld.\n", (size_t)p->tasks.len);
+    kdebug_log("destroy the thread pool. Remained tasks: %llu", (size_t)p->tasks.len);
 
     TaskQueue_destroy(&p->tasks);
     free(p->threads);
@@ -164,19 +235,24 @@ void ThreadPool_destroy(ThreadPool* const p) {
 }
 
 void ThreadPool_plan(ThreadPool* const p, const Task task) {
+    kdebug_log("plan [%s]", task.name);
+
     TaskQueue_push(&p->tasks, task);
     cnd_signal(&p->cnd);
-
-    printf("Tasks [%s, %ld] is planned.\n", task.name, (size_t)task.arg);
 }
 
 void ThreadPool_join(ThreadPool* const p) {
     p->joined = true;
 
-    while (p->ready_to_join != p->threads_len) {
-        cnd_broadcast(&p->cnd);
-    }
+    check_elapsed_sec( broadcasting_to_join_time, 
+        while (p->ready_to_join != p->threads_len) {
+            cnd_broadcast(&p->cnd);
+            // kdebug_log("broadcast all threads to join. Ready %lu/%lu", p->ready_to_join, p->threads_len);
+        }
+    )
 
+    kdebug_log("all %llu threads ready to join (%.3llf sec)", p->threads_len, broadcasting_to_join_time);
+    
     for (size_t i = 0; i < p->threads_len; ++i) {
         thrd_join(p->threads[i], NULL);
     }
@@ -187,7 +263,7 @@ size_t ThreadPool_freeThreadsCount(ThreadPool *const p) {
     return p->free_threads_count;
 }
 
-size_t ThreadPool_tasksCount(ThreadPool*const p) {
+size_t ThreadPool_tasksCount(ThreadPool *const p) {
     assert(p != NULL);
     return p->tasks.len;
 }
