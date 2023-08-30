@@ -12,6 +12,17 @@ typedef struct Task {
 #endif
 } Task;
 
+#ifndef COLLECT_STATISTICS
+#define COLLECT_STATISTICS  1
+#endif
+
+typedef struct TPStatistics {
+    umax  thread_len;
+    u32* solvedTasks;    // of every thread;
+    u32* cancelledTasks; // of every thread;
+    f32* spentTime;      // for solving all tasks of one thread;
+} TPStatistics;
+
 #ifndef KRAKEN_IMPLICIT_THREAD_POOL_DEFINITION
 
 #include <threads.h>
@@ -40,6 +51,8 @@ typedef struct ThreadPool {
 
     cnd_t       cnd;
     mtx_t       mtx;
+
+    TPStatistics statistics;
 } ThreadPool;
 
 #else 
@@ -68,5 +81,11 @@ void        ThreadPool_plan(struct ThreadPool*, Task);
 void        ThreadPool_join(struct ThreadPool*);
 size_t      ThreadPool_freeThreadsCount(struct ThreadPool*);
 size_t      ThreadPool_tasksCount(struct ThreadPool* const);
+const TPStatistics* 
+            ThreadPool_getStatistics(struct ThreadPool* const);
+
+void        TPStatistics_init(TPStatistics*, size_t thread_len);
+void        TPStatistics_destroy(TPStatistics*);
+char*       TPStatistics_to_string(TPStatistics const*);
 
 #endif

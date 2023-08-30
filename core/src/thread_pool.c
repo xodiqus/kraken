@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
 
 #include "kdebug.h"
 
@@ -134,7 +135,7 @@ static int ThreadPool_loop(void* in) {
     free(in);
 
     kdebug_code(
-        arg = NULL,
+        arg = NULL;
         in = NULL;
     )
 
@@ -142,19 +143,16 @@ static int ThreadPool_loop(void* in) {
         mtx_lock(&pool->mtx);
 
         check_elapsed_sec( waiting_time, 
-            while (TaskQueue_is_empty(tasks)) {
-                kdebug_log("thread %lu waits for a new task", this_thrd);
-                cnd_wait(&pool->cnd, &pool->mtx);
-
-                if (!TaskQueue_is_empty(tasks)) {
-                    break;
-                }   
-
+            while (TaskQueue_is_empty(tasks)) 
+            {    
                 if (pool->joined) {
                     mtx_unlock(&pool->mtx);
                     kdebug_log("thread %lu joins", this_thrd);
                     ++pool->ready_to_join;
                     goto exit;
+                } else {
+                    kdebug_log("thread %lu waits for a new task", this_thrd);
+                    cnd_wait(&pool->cnd, &pool->mtx);
                 }
             }
         )
@@ -173,6 +171,11 @@ static int ThreadPool_loop(void* in) {
         )
 
         ++pool->free_threads_count;
+
+        #if COLLECT_STATISTICS
+            ++pool->statistics.solvedTasks[this_thrd];
+            pool->statistics.spentTime[this_thrd] += work_time;
+        #endif
     }
 
     exit:
@@ -204,6 +207,10 @@ void ThreadPool_init(ThreadPool *p, size_t threads_count)
     cnd_init(&p->cnd);
     mtx_init(&p->mtx, mtx_plain);
 
+#if COLLECT_STATISTICS
+    TPStatistics_init(&p->statistics, threads_count);
+#endif
+
     p->free_threads_count = threads_count;
 
     check_elapsed_sec( all_thread_creation_time, 
@@ -232,6 +239,10 @@ void ThreadPool_destroy(ThreadPool* const p) {
 
     mtx_destroy(&p->mtx);
     cnd_destroy(&p->cnd);
+
+#if COLLECT_STATISTICS
+    TPStatistics_destroy(&p->statistics);
+#endif
 }
 
 void ThreadPool_plan(ThreadPool* const p, const Task task) {
@@ -245,17 +256,17 @@ void ThreadPool_join(ThreadPool* const p) {
     p->joined = true;
 
     check_elapsed_sec( broadcasting_to_join_time, 
-        while (p->ready_to_join != p->threads_len) {
+        // while (p->ready_to_join != p->threads_len) {
+            kdebug_log("broadcast all threads to join. Ready %lu/%lu", p->ready_to_join, p->threads_len);
             cnd_broadcast(&p->cnd);
-            // kdebug_log("broadcast all threads to join. Ready %lu/%lu", p->ready_to_join, p->threads_len);
+        // }
+
+        for (size_t i = 0; i < p->threads_len; ++i) {
+            thrd_join(p->threads[i], NULL);
         }
     )
 
     kdebug_log("all %llu threads ready to join (%.3llf sec)", p->threads_len, broadcasting_to_join_time);
-    
-    for (size_t i = 0; i < p->threads_len; ++i) {
-        thrd_join(p->threads[i], NULL);
-    }
 } 
 
 size_t ThreadPool_freeThreadsCount(ThreadPool *const p) {
@@ -266,4 +277,93 @@ size_t ThreadPool_freeThreadsCount(ThreadPool *const p) {
 size_t ThreadPool_tasksCount(ThreadPool *const p) {
     assert(p != NULL);
     return p->tasks.len;
+}
+
+const TPStatistics *ThreadPool_getStatistics(ThreadPool *const p)
+{   
+#if COLLECT_STATISTICS
+    return &p->statistics;
+#else 
+    return NULL;
+#endif
+}
+
+void TPStatistics_init(TPStatistics *s, size_t thread_len) {
+    assert(s != NULL);
+
+    s->thread_len = thread_len;
+    
+    s->cancelledTasks = calloc(thread_len, sizeof(s->cancelledTasks));
+    assert(s->cancelledTasks);
+
+    s->solvedTasks = calloc(thread_len, sizeof(s->solvedTasks));
+    assert(s->solvedTasks != NULL);
+
+    s->spentTime = calloc(thread_len, sizeof(s->spentTime));
+    assert(s->spentTime != NULL);
+}
+
+void TPStatistics_destroy(TPStatistics* s) {
+    assert(s != NULL);
+
+    free(s->cancelledTasks);
+    free(s->solvedTasks);
+    free(s->spentTime);
+
+    kdebug_code(
+        memset(s, 0, sizeof(TPStatistics));
+    );
+}
+
+char* TPStatistics_to_string(TPStatistics const* const s) {
+    if (s == NULL) {
+        const char s[] = "Statistics not available "
+#if COLLECT_STATISTICS
+        "(COLLECT_STATISTICS = 0).";
+#else
+        "(input argument is NULL).";
+#endif
+        char* const result = malloc(sizeof(s));
+        memcpy(result, s, sizeof(s));
+        return result;
+    }
+
+    char buf[256];
+    char* const result = malloc(256 * (3 + s->thread_len));
+    assert(result != NULL);
+
+    result[0] = '\0';
+    sprintf(buf, "%6s\t | %6s\t | %6s\t | %6s\n", "Thread", "solved tasks", "cancelled", "elapsed (sec)");
+    strcat(result, buf);
+
+    u32 sum_solved = 0;
+    u32 sum_cancelled = 0;
+    f32 sum_spentTime = 0.0;
+
+    for (size_t t = 0; t < s->thread_len; ++t) {
+        sprintf(buf, " %6lu\t | %6u\t | %6u\t | %6.2f\n", 
+            t, 
+            s->solvedTasks[t],
+            s->cancelledTasks[t],
+            s->spentTime[t]
+        );
+
+        sum_solved += s->solvedTasks[t];
+        sum_cancelled += s->cancelledTasks[t];
+        sum_spentTime += s->spentTime[t];
+
+        strcat(result, buf);
+    }
+
+    strcat(result, "Summary:\n");
+
+    sprintf(buf, " %6lu\t | %6u\t | %6u\t | %6.2f\n", 
+        s->thread_len, 
+        sum_solved,
+        sum_cancelled,
+        sum_spentTime
+    );
+    strcat(result, buf);
+
+    return result;
 }
