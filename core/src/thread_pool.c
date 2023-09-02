@@ -9,30 +9,6 @@
 #include "kdebug.h"
 
 
-const char* Task_name(const char *format, ...) {
-    assert(format != NULL);
-
-#ifdef KRAKEN_DEBUG
-
-    char* name = malloc(100);
-    assert(name != NULL);
-
-    va_list args;
-    va_start(args, format);
-
-    vsprintf(name, format, args);
-
-    va_end(args);
-
-    return name;
-
-#else
-
-    return NULL;
-
-#endif
-}
-
 void TaskQueue_init(TaskQueue *r) {
     assert(r != NULL);
 
@@ -76,8 +52,9 @@ bool TaskQueue_is_empty(TaskQueue* const q) {
     return r;
 }
 
-void TaskQueue_push(TaskQueue* q, Task t) {
+void TaskQueue_push(TaskQueue* q, Task* t) {
     assert(q != NULL);
+    assert(t != NULL);
 
     TaskQueue_Node* const new = malloc(sizeof (TaskQueue_Node));
     new->task = t;
@@ -95,12 +72,12 @@ void TaskQueue_push(TaskQueue* q, Task t) {
     mtx_unlock(&q->mtx);
 }
 
-Task TaskQueue_pop(TaskQueue* const q) {
+Task* TaskQueue_pop(TaskQueue* const q) {
     assert(q != NULL);
     assert(!TaskQueue_is_empty(q));
 
     mtx_lock(&q->mtx);
-    const Task t = q->first->task;
+    Task* t = q->first->task;
     TaskQueue_Node* const node = q->first;
 
     if (q->len == 1) {
@@ -157,24 +134,27 @@ static int ThreadPool_loop(void* in) {
             }
         )
 
-        Task t = TaskQueue_pop(tasks);
+        Task* t = TaskQueue_pop(tasks);
         
         mtx_unlock(&pool->mtx);
-        --pool->free_threads_count;
+        ++pool->busy_threads_count;
 
-        kdebug_log("thread %lu starts [%s] (wait: %.2llf ms)", this_thrd, t.name, waiting_time*1000);
-        check_elapsed_sec(work_time, t.f(t.arg));
-        kdebug_log("thread %lu finishes [%s] (%.2llf sec)", this_thrd, t.name, work_time);
+        kdebug_log("thread %lu starts [%s] (wait: %.2llf ms)", this_thrd, t->name, waiting_time*1000);
+        check_elapsed_sec( work_time, 
+            const TaskStatus status = t->f(t->in, t->out, &t->control)
+        );
+        kdebug_log("thread %lu finishes [%s] (%.2llf sec)", this_thrd, t->name, work_time);
 
-        kdebug_code(
-            free((char*)t.name);
-        )
-
-        ++pool->free_threads_count;
+        --pool->busy_threads_count;
 
         #if COLLECT_STATISTICS
-            ++pool->statistics.solvedTasks[this_thrd];
-            pool->statistics.spentTime[this_thrd] += work_time;
+            if (status == TS_success) {
+                ++pool->statistics.solved_tasks[this_thrd];
+            } else if (status == TS_cancel) {
+                ++pool->statistics.cancelled_tasks[this_thrd];
+            }
+
+            pool->statistics.spent_time[this_thrd] += work_time;
         #endif
     }
 
@@ -211,7 +191,7 @@ void ThreadPool_init(ThreadPool *p, size_t threads_count)
     TPStatistics_init(&p->statistics, threads_count);
 #endif
 
-    p->free_threads_count = threads_count;
+    p->busy_threads_count = 0;
 
     check_elapsed_sec( all_thread_creation_time, 
         for (size_t i = 0; i < threads_count; ++i) {
@@ -245,11 +225,15 @@ void ThreadPool_destroy(ThreadPool* const p) {
 #endif
 }
 
-void ThreadPool_plan(ThreadPool* const p, const Task task) {
-    kdebug_log("plan [%s]", task.name);
+void ThreadPool_plan(ThreadPool* const p, Task* task) {
+    kdebug_log("plan [%s]", task->name);
 
     TaskQueue_push(&p->tasks, task);
     cnd_signal(&p->cnd);
+
+#if COLLECT_STATISTICS
+    ++p->statistics.total_tasks_count;
+#endif
 }
 
 void ThreadPool_join(ThreadPool* const p) {
@@ -271,7 +255,7 @@ void ThreadPool_join(ThreadPool* const p) {
 
 size_t ThreadPool_freeThreadsCount(ThreadPool *const p) {
     assert(p != NULL);
-    return p->free_threads_count;
+    return p->threads_len - p->busy_threads_count;
 }
 
 size_t ThreadPool_tasksCount(ThreadPool *const p) {
@@ -291,24 +275,24 @@ const TPStatistics *ThreadPool_getStatistics(ThreadPool *const p)
 void TPStatistics_init(TPStatistics *s, size_t thread_len) {
     assert(s != NULL);
 
-    s->thread_len = thread_len;
+    s->threads_count = thread_len;
     
-    s->cancelledTasks = calloc(thread_len, sizeof(s->cancelledTasks));
-    assert(s->cancelledTasks);
+    s->cancelled_tasks = calloc(thread_len, sizeof(s->cancelled_tasks));
+    assert(s->cancelled_tasks);
 
-    s->solvedTasks = calloc(thread_len, sizeof(s->solvedTasks));
-    assert(s->solvedTasks != NULL);
+    s->solved_tasks = calloc(thread_len, sizeof(s->solved_tasks));
+    assert(s->solved_tasks != NULL);
 
-    s->spentTime = calloc(thread_len, sizeof(s->spentTime));
-    assert(s->spentTime != NULL);
+    s->spent_time = calloc(thread_len, sizeof(s->spent_time));
+    assert(s->spent_time != NULL);
 }
 
 void TPStatistics_destroy(TPStatistics* s) {
     assert(s != NULL);
 
-    free(s->cancelledTasks);
-    free(s->solvedTasks);
-    free(s->spentTime);
+    free(s->cancelled_tasks);
+    free(s->solved_tasks);
+    free(s->spent_time);
 
     kdebug_code(
         memset(s, 0, sizeof(TPStatistics));
@@ -329,7 +313,7 @@ char* TPStatistics_to_string(TPStatistics const* const s) {
     }
 
     char buf[256];
-    char* const result = malloc(256 * (3 + s->thread_len));
+    char* const result = malloc(256 * (3 + s->threads_count));
     assert(result != NULL);
 
     result[0] = '\0';
@@ -340,17 +324,17 @@ char* TPStatistics_to_string(TPStatistics const* const s) {
     u32 sum_cancelled = 0;
     f32 sum_spentTime = 0.0;
 
-    for (size_t t = 0; t < s->thread_len; ++t) {
+    for (size_t t = 0; t < s->threads_count; ++t) {
         sprintf(buf, " %6lu\t | %6u\t | %6u\t | %6.2f\n", 
             t, 
-            s->solvedTasks[t],
-            s->cancelledTasks[t],
-            s->spentTime[t]
+            s->solved_tasks[t],
+            s->cancelled_tasks[t],
+            s->spent_time[t]
         );
 
-        sum_solved += s->solvedTasks[t];
-        sum_cancelled += s->cancelledTasks[t];
-        sum_spentTime += s->spentTime[t];
+        sum_solved += s->solved_tasks[t];
+        sum_cancelled += s->cancelled_tasks[t];
+        sum_spentTime += s->spent_time[t];
 
         strcat(result, buf);
     }
@@ -358,7 +342,7 @@ char* TPStatistics_to_string(TPStatistics const* const s) {
     strcat(result, "Summary:\n");
 
     sprintf(buf, " %6lu\t | %6u\t | %6u\t | %6.2f\n", 
-        s->thread_len, 
+        s->threads_count, 
         sum_solved,
         sum_cancelled,
         sum_spentTime

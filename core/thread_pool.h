@@ -2,34 +2,27 @@
 #define KRAKEN_THREAD_POOL_INCLUDED
 
 #include "fundamental_types.h"
-
-typedef struct Task {
-    i32 (*f)(void*);
-    void* arg;
-
-#ifdef KRAKEN_DEBUG    
-    const char* name; 
-#endif
-} Task;
+#include "task.h"
 
 #ifndef COLLECT_STATISTICS
 #define COLLECT_STATISTICS  1
 #endif
 
 typedef struct TPStatistics {
-    umax  thread_len;
-    u32* solvedTasks;    // of every thread;
-    u32* cancelledTasks; // of every thread;
-    f32* spentTime;      // for solving all tasks of one thread;
+    umax    threads_count;
+    u32*    solved_tasks;       // of every thread;
+    u32*    cancelled_tasks;    // of every thread;
+    f32*    spent_time;         // for solving all tasks of one thread;
+    umax    total_tasks_count;  // number of tasks;
 } TPStatistics;
 
-#ifndef KRAKEN_IMPLICIT_THREAD_POOL_DEFINITION
+#ifndef KRAKEN_IMPLICIT_DEFINITION
 
 #include <threads.h>
 #include <stdatomic.h>
 
 typedef struct TaskQueue_Node {
-    Task                      task; 
+    Task*                     task; 
     struct TaskQueue_Node*    next;
 } TaskQueue_Node;
 
@@ -43,7 +36,7 @@ typedef struct ThreadPool {
     thrd_t* threads;
     size_t  threads_len;
 
-    atomic_size_t free_threads_count;
+    atomic_size_t busy_threads_count;
     atomic_size_t ready_to_join;
 
     TaskQueue   tasks;
@@ -65,19 +58,17 @@ void               ThreadPool_delete(struct ThreadPool*);
 
 #endif
 
-const char* Task_name(const char* format, ...);
-
 void        TaskQueue_init(struct TaskQueue*);
 void        TaskQueue_destroy(struct TaskQueue*);
 
 bool        TaskQueue_is_empty(struct TaskQueue*);
-void        TaskQueue_push(struct TaskQueue*, Task);
-Task        TaskQueue_pop (struct TaskQueue*);
+void        TaskQueue_push(struct TaskQueue*, Task*);
+Task*       TaskQueue_pop (struct TaskQueue*);
 
 void        ThreadPool_init(struct ThreadPool*, size_t threads_count);
 void        ThreadPool_destroy(struct ThreadPool*);
 
-void        ThreadPool_plan(struct ThreadPool*, Task);
+void        ThreadPool_plan(struct ThreadPool*, Task*);
 void        ThreadPool_join(struct ThreadPool*);
 size_t      ThreadPool_freeThreadsCount(struct ThreadPool*);
 size_t      ThreadPool_tasksCount(struct ThreadPool* const);
